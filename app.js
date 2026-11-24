@@ -371,7 +371,7 @@
         h("div", { class: "paper" }, h("b", {}, "The Zero Hour Times"),
           h("small", {}, `${season.name} edition · ${new Date().toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })} · price: one (1) supply crate`)));
       if (!heads.length) paper.append(h("span", { class: "empty" }, "Slow news day. Somebody please lose dramatically."));
-      heads.slice(0, 4).forEach((t) => paper.append(h("div", { class: "headline" }, t)));
+      heads.slice(0, 5).forEach((t) => paper.append(h("div", { class: "headline" }, t)));
       const ns = ZH.nightsOf(doc, seasonId), lastN = ns[ns.length - 1];
       if (heads.length) paper.append(reactBar("news:" + seasonId + ":" + (lastN ? lastN.id : "none")));
       box.append(paper);

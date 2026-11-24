@@ -322,6 +322,48 @@ const ZH = (() => {
       "BREAKING: {a} inherits the 💩.",
       "{a} hits the bottom of {s}. Says he “meant to do that”.",
     ],
+    nightStar: [
+      "LAST NIGHT: {a} wins {w} sets. Opponents seen leaving quietly.",
+      "{a} ran the show last night with {w} wins. The others were extras.",
+      "Night report: {a}, {w} wins. Witnesses still in shock.",
+      "{a} collected {w} wins last night like it was nothing.",
+    ],
+    nightFlop: [
+      "LAST NIGHT: {a} drops {l} sets. A moment of silence, please.",
+      "{a} lost {l} sets last night. His keyboard is under investigation.",
+      "{a} lost {l} sets last night. Teams were, of course, unfairly distributed.",
+      "{a}'s night: {l} losses and one long sigh.",
+    ],
+    nightAbsentOne: [
+      "{a} skipped last night. The −0.5 has been mailed.",
+      "{a} missed last night's action. His excuse is still loading.",
+      "No sign of {a} last night. His Patriots held the base alone.",
+    ],
+    nightAbsentMany: [
+      "{n} generals skipped last night. Desertion charges pending.",
+      "Last night's attendance: poor. {n} no-shows, −0.5 each.",
+      "{n} empty chairs last night. The GLA workers sat in them.",
+    ],
+    nightUpset: [
+      "UPSET: #{rw} {w} beat #{rl} {l} in a 1v1 last night.",
+      "Nobody saw it coming: {w} took down {l} 1v1. {l} “not available for comment”.",
+      "David vs Goliath: {w} (#{rw}) beat {l} (#{rl}). Goliath is filing a complaint.",
+    ],
+    nightClimb: [
+      "{a} climbs from #{from} to #{to} after last night. He took the stairs.",
+      "Big mover: {a} jumps from #{from} to #{to}.",
+      "{a} up {d} places last night (#{from} → #{to}). Someone check his supply crates.",
+    ],
+    nightDrop: [
+      "{a} slides from #{from} to #{to} after last night. Gravity wins again.",
+      "Rough night for {a}: down from #{from} to #{to}.",
+      "{a} falls {d} places (#{from} → #{to}). Search parties have been sent.",
+    ],
+    nightBusy: [
+      "{n} sets in one night. The neighbours have called the police.",
+      "Marathon night: {n} sets. Coffee supplies exhausted.",
+      "{n} sets played last night. The Auroras need a holiday.",
+    ],
     hot: ["{a} wins {n} in a row. Opponents have formed a support group.", "{a} is on a {n}-set streak. Somebody unplug his router.", "{a}: {n} wins in a row. Opponents considering a new hobby.", "{a} is on fire ({n} straight). Bring a fire extinguisher. And an Aurora.", "{n} wins in a row for {a}. The lobby demands a recount."],
     cold: ["{a} has lost {n} straight. “I will work!” he insists. Evidence suggests otherwise.", "{a}: {n} losses in a row. His mouse is now in witness protection.", "{a}: {n} losses in a row. His mouse has asked to be reassigned.", "{a} has lost {n} straight. Teams, of course, were unfairly distributed.", "{n}-set losing streak for {a}. A support hotline has been set up."],
     ghost: ["MISSING: {a}, absent {n} nights this season. Reward: one (1) tank.", "{a} has missed {n} nights. The base is now a museum.", "{a} has skipped {n} nights. Milk cartons are being printed.", "Sighting reported: {a}, absent {n} nights. Unconfirmed.", "{a}: {n} nights missing. His Patriots still guard the base."],
@@ -353,6 +395,16 @@ const ZH = (() => {
       "Overlord dealership announces a 2-for-1 sale.",
       "Department of Justice running out of paper.",
       "BREAKING: nobody actually needed that many Auroras.",
+      "Local man claims he “was about to win”. Investigation ongoing.",
+      "Supply crate prices rising. Experts blame the Black Lotus.",
+      "Survey: 9 out of 10 generals think they're the 10th.",
+      "Patriot missile spotted guarding a sandwich.",
+      "GLA workers win Employee of the Month. Again. Nobody else applied.",
+      "Report: “one more set” has never meant one more set.",
+      "Overlord tank seen parallel parking. Badly.",
+      "Tournament Desert declared a “no-crying zone”. Enforcement weak.",
+      "Rumour: someone actually read the patch notes.",
+      "Scud Storm forecast for the weekend. Bring an umbrella.",
     ],
   };
 
@@ -365,13 +417,41 @@ const ZH = (() => {
     const r = rng("news:" + sid + ":" + (last ? last.id : "none") + ":" + table.length), take = deck(r);
     const aka = (id) => displayName(player(doc, id));
     const out = [];
+    // ranking just before the latest night (for climbs, drops, upsets, "still first")
+    const before = nights.length >= 2 ? standings({ ...doc, nights: doc.nights.filter((n) => n.id !== last.id) }, sid) : null;
+
+    // ----- stories from the latest night -----
+    const nightOut = [];
+    const lastRep = last ? nightReport(doc, last) : null;
+    if (lastRep && lastRep.games.length) {
+      const per = Object.entries(lastRep.per);
+      const star = per.filter(([, x]) => x.w >= 2).sort((x, y) => y[1].w - x[1].w || x[1].l - y[1].l || (x[0] < y[0] ? -1 : 1))[0];
+      if (star) nightOut.push(fill(take(NEWS.nightStar), { a: aka(star[0]), w: star[1].w }));
+      const flop = per.filter(([id, x]) => x.l >= 2 && (!star || id !== star[0])).sort((x, y) => y[1].l - x[1].l || x[1].w - y[1].w || (x[0] < y[0] ? -1 : 1))[0];
+      if (flop) nightOut.push(fill(take(NEWS.nightFlop), { a: aka(flop[0]), l: flop[1].l }));
+      if (lastRep.absent.length === 1) nightOut.push(fill(take(NEWS.nightAbsentOne), { a: aka(lastRep.absent[0]) }));
+      else if (lastRep.absent.length > 1) nightOut.push(fill(take(NEWS.nightAbsentMany), { n: lastRep.absent.length }));
+      if (lastRep.games.length >= 6) nightOut.push(fill(take(NEWS.nightBusy), { n: lastRep.games.length }));
+      if (before && before.some((x) => x.games > 0)) {
+        const rankBefore = Object.fromEntries(before.map((x, i) => [x.id, i + 1]));
+        const rankNow = Object.fromEntries(ranking.map((x, i) => [x.id, i + 1]));
+        const upset = lastRep.games.filter((g) => g.type === "1v1").map((g) => {
+          const w = (g.winner === "A" ? g.teamA : g.teamB)[0], l = (g.winner === "A" ? g.teamB : g.teamA)[0];
+          return { w, l, rw: rankBefore[w], rl: rankBefore[l] };
+        }).filter((u) => u.rw && u.rl && u.rw - u.rl >= 2).sort((x, y) => (y.rw - y.rl) - (x.rw - x.rl))[0];
+        if (upset) nightOut.push(fill(take(NEWS.nightUpset), { w: aka(upset.w), l: aka(upset.l), rw: upset.rw, rl: upset.rl }));
+        const moves = ranking.map((x) => ({ id: x.id, from: rankBefore[x.id], to: rankNow[x.id] })).filter((m) => m.from);
+        const up = moves.filter((m) => m.from - m.to >= 2).sort((x, y) => (y.from - y.to) - (x.from - x.to))[0];
+        const down = moves.filter((m) => m.to - m.from >= 2).sort((x, y) => (y.to - y.from) - (x.to - x.from))[0];
+        if (up) nightOut.push(fill(take(NEWS.nightClimb), { a: aka(up.id), from: up.from, to: up.to, d: up.from - up.to }));
+        if (down) nightOut.push(fill(take(NEWS.nightDrop), { a: aka(down.id), from: down.from, to: down.to, d: down.to - down.from }));
+      }
+    }
+
     if (table.length >= 2) {
       // "still"/"again" only if he held that spot after the previous night too
       let prev = null;
-      if (nights.length >= 2) {
-        const before = standings({ ...doc, nights: doc.nights.filter((n) => n.id !== last.id) }, sid);
-        if (before.filter((x) => x.games > 0 || x.absences > 0).length >= 2) prev = before;
-      }
+      if (before && before.filter((x) => x.games > 0 || x.absences > 0).length >= 2) prev = before;
       const top = ranking[0].id, bottom = ranking[ranking.length - 1].id;
       const leadPool = NEWS.leader.concat(prev && prev[0].id === top ? NEWS.leaderSteady : NEWS.leaderNew);
       const lastPool = NEWS.last.concat(prev && prev[prev.length - 1].id === bottom ? NEWS.lastSteady : NEWS.lastNew);
@@ -395,8 +475,10 @@ const ZH = (() => {
         gossip = fill(tpl, { a: aka(a), b: others.length ? aka(others[Math.floor(r() * others.length)].id) : "" });
     }
     out.push(take(NEWS.filler));
-    const heads = shuffle(r, out).slice(0, gossip ? 5 : 6);
-    if (gossip) heads.splice(Math.min(1, heads.length), 0, gossip);   // always on the front page, 2nd headline
+    // front page: up to 2 stories from last night, then the gossip, then season news
+    const heads = shuffle(r, nightOut).slice(0, 2);
+    if (gossip) heads.push(gossip);
+    for (const x of shuffle(r, out)) { if (heads.length >= 7) break; heads.push(x); }
     return heads;
   }
 
