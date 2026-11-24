@@ -464,15 +464,17 @@ const ZH = (() => {
       if (x.victim && x.victim.n >= 3) out.push(fill(take(NEWS.nemesis), { a: aka(x.id), b: aka(x.victim.id), n: x.victim.n }));
     });
     let gossip = null;
-    // one gossip line per edition, cycling through all of them before any repeats;
-    // the players in it are random ({b} is always someone other than {a})
+    // gossip changes every day (and with every new night), cycling through all
+    // stories before any repeats; same on every phone. Random players ({b} ≠ {a}).
     const pool = table.length ? table : doc.players.filter((p) => isActiveNow(p)).map((p) => ({ id: p.id }));
     if (pool.length) {
+      const day = Math.floor((Date.now() - (season.startTs || 0)) / 86400000);
       const order = shuffle(rng("gossip:" + sid), NEWS.gossip);
-      const tpl = order[nights.length % order.length];
-      const a = pool[Math.floor(r() * pool.length)].id, others = pool.filter((x) => x.id !== a);
+      const tpl = order[(day + nights.length) % order.length];
+      const g = rng("gossip-names:" + sid + ":" + day + ":" + nights.length);
+      const a = pool[Math.floor(g() * pool.length)].id, others = pool.filter((x) => x.id !== a);
       if (!tpl.includes("{b}") || others.length)
-        gossip = fill(tpl, { a: aka(a), b: others.length ? aka(others[Math.floor(r() * others.length)].id) : "" });
+        gossip = fill(tpl, { a: aka(a), b: others.length ? aka(others[Math.floor(g() * others.length)].id) : "" });
     }
     out.push(take(NEWS.filler));
     // front page (5 headlines): up to 2 stories from last night, season news, and the

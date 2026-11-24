@@ -282,6 +282,10 @@
     const said = ZS.radioStatements(events, n.id);
     if (lines.length || said.length) panel.append(radioTicker(n.id, lines, said));
     if (rep.games.length && ZS.votingOpen(n)) panel.append(radioInput(n));
+    const mine = said.filter((e) => e.by === me || isAdmin());
+    if (mine.length) panel.append(h("div", { class: "radio-mine" }, mine.map((e) => h("div", {},
+      h("span", {}, (e.by === me ? "You" : aka(e.by)) + ": “" + e.text + "”"),
+      String(e.cid).startsWith("pending") ? null : h("button", { class: "xbtn", type: "button", "aria-label": "Delete transmission", onclick: () => deleteEvent(e) }, "✕")))));
     if (rep.games.length) panel.append(voteBox(n, rep, votes));
     if (writable) {
       if (gameOpen === n.id) panel.append(gameForm(n));
@@ -400,10 +404,6 @@
     events.slice().reverse().forEach((e) => {
       if (e.t === "accuse") items.push(accuseItem(caseById[e.id], e));
       else if (e.t === "complaint") items.push(complaintItem(e));
-      else if (e.t === "radio" && e.text) {
-        const night = doc.nights.find((x) => x.id === e.night);
-        items.push(feedRow(e, "📻", `${aka(e.by)} on the radio${night ? " (" + dayLabel(night.ts) + ")" : ""}: “${e.text}”`, true));
-      }
       else if (e.t === "status" && e.text) items.push(feedRow(e, "💬", `${aka(e.by)} set a status: “${e.text}”`, true));
       else if (e.t === "mood") items.push(feedRow(e, e.upset ? "😤" : "😌", `${aka(e.by)} ${e.upset ? "GOT UPSET" : "CALMED DOWN"} · ${ZS.moodLine(e)}`, true));
       else if (e.t === "vote" && e.target) {
