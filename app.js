@@ -478,8 +478,28 @@
   // ----- Bets: under construction ---------------------------------------------------------
   const BRIBES = ["Construction bribed: +0%. The workers took the money anyway.", "The GLA workers are on a tea break. Since Tuesday.",
     "Progress report: someone stole the shovel.", "“I will work!” — worker, 3 weeks ago", "Foreman says: “two more weeks.” He always says that.",
-    "A batenjene was found on site. Work has stopped for questioning. 🍆", "Building permit denied: teams were unfairly distributed."];
-  let bribes = 0;
+    "A batenjene was found on site. Work has stopped for questioning. 🍆", "Building permit denied: teams were unfairly distributed.",
+    "Bribe accepted. Progress: still 12%.",
+    "The foreman bought a new car. Progress unchanged.",
+    "Your money was converted into one (1) supply crate. Then stolen.",
+    "Black Lotus intercepted your bribe. Classic.",
+    "The workers say thank you. That's all they say.",
+    "Bribe rejected: not enough. It's never enough.",
+    "Construction paused: someone parked an Overlord on the site.",
+    "The architect left “to get water”. 🚰",
+    "Progress bar repainted to look like 13%. Still 12%.",
+    "Your bribe funded a Scud Storm. Wrong project.",
+    "Workers spotted napping inside a Tunnel Network.",
+    "Inspector says the site needs 14 more Patriots.",
+    "Bribe received. Receipt shredded. Nice doing business.",
+    "Delayed: the workers were unfairly distributed.",
+    "The crane is on strike. The crane has a union now.",
+    "An Aurora flew over and scared the workers. Again.",
+    "Your bribe was spent on shawarma. Morale +100, progress +0.",
+    "The workers refuse to continue until they get chairs.",
+    "Estimated completion: two weeks. Since forever.",
+    "Thank you for your bribe. Please hold. Your bribe is important to us."];
+  let bribes = 0, bribeOrder = null;
   function renderBets() {
     const box = $("tab-bets"); box.innerHTML = "";
     box.append(h("div", { class: "card uc" },
@@ -488,7 +508,7 @@
       h("b", { class: "title" }, "Betting window"),
       h("div", { class: "note" }, "Under construction"),
       h("p", { class: "worker" }, "A GLA worker is building it. “I will work!”… eventually."),
-      h("div", { class: "progress", title: "Tap to bribe the workers", onclick: () => { toast(BRIBES[bribes++ % BRIBES.length]); } },
+      h("div", { class: "progress", title: "Tap to bribe the workers", onclick: () => { if (!bribeOrder) bribeOrder = BRIBES.slice().sort(() => Math.random() - 0.5); toast(bribeOrder[bribes++ % bribeOrder.length]); } },
         h("div", { style: "width:12%" }), h("span", {}, "12% · TAP TO BRIBE")),
       h("div", { class: "tape bottom" })));
   }
