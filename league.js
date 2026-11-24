@@ -273,6 +273,9 @@ const ZH = (() => {
     cold: ["{a} has lost {n} straight. “I will work!” he insists. Evidence suggests otherwise.", "{a}: {n} losses in a row. His mouse is now in witness protection.", "{a}: {n} losses in a row. His mouse has asked to be reassigned.", "{a} has lost {n} straight. Teams, of course, were unfairly distributed.", "{n}-set losing streak for {a}. A support hotline has been set up."],
     ghost: ["MISSING: {a}, absent {n} nights this season. Reward: one (1) tank.", "{a} has missed {n} nights. The base is now a museum.", "{a} has skipped {n} nights. Milk cartons are being printed.", "Sighting reported: {a}, absent {n} nights. Unconfirmed.", "{a}: {n} nights missing. His Patriots still guard the base."],
     nemesis: ["{a} has beaten {b} {n} times this season. {b} calls it “a personal matter”.", "Diplomatic crisis: {b} lost to {a} {n} times and refuses to comment.", "{a} beat {b} {n} times this season. {b} has stopped making eye contact.", "{a} has {n} wins over {b} this season. {b} remains “not bothered”.", "{b} has lost to {a} {n} times. Peace talks have failed."],
+    gossip: [
+      "{a} spotted holding hands with Black Lotus in a tent in Tournament Desert.",
+    ],
     filler: [
       "Weather forecast: heavy artillery with a 90% chance of rage-quits.",
       "GLA workers threaten strike: “We will work… later.”",
@@ -309,6 +312,9 @@ const ZH = (() => {
       if (x.absences >= 2) out.push(fill(take(NEWS.ghost), { a: aka(x.id), n: x.absences }));
       if (x.victim && x.victim.n >= 3) out.push(fill(take(NEWS.nemesis), { a: aka(x.id), b: aka(x.victim.id), n: x.victim.n }));
     });
+    // gossip about a random player (about every other edition)
+    const pool = table.length ? table : doc.players.filter((p) => isActiveNow(p)).map((p) => ({ id: p.id }));
+    if (pool.length && r() < 0.5) out.push(fill(take(NEWS.gossip), { a: aka(pool[Math.floor(r() * pool.length)].id) }));
     out.push(take(NEWS.filler));
     return shuffle(r, out).slice(0, 6);
   }
