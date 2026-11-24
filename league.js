@@ -382,7 +382,15 @@ const ZH = (() => {
         if (r.status !== 404) {
           if (!r.ok) return { doc, status: "offline" };
           const j = await r.json(); sha = j.sha; remote = JSON.parse(b64decode(j.content));
-        } else if (opts.readOnly) return { doc, status: "auth" };   // players can't see the repo: wrong key
+        } else {
+          // No league file. GitHub also says 404 for a repo the key can't see, so ask
+          // about the repo itself: reachable = a brand-new, empty league.
+          const repo = await fetchFn(`https://api.github.com/repos/${conn.repo}`, { cache: "no-store",
+            headers: { Authorization: `Bearer ${conn.token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" } });
+          if (repo.status === 401 || repo.status === 403 || repo.status === 404) return { doc, status: "auth" };
+          if (!repo.ok) return { doc, status: "offline" };
+          if (opts.readOnly) return { doc, status: "ok" };      // empty league; nothing to read yet
+        }
         doc = merge(doc, remote);
         if (opts.onMerged) opts.onMerged(doc);
         if (opts.readOnly) return { doc, status: "ok" };
