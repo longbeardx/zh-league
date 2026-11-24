@@ -15,7 +15,7 @@
  */
 const ZS = (() => {
   const TITLE = "zh-social-log";
-  const VOTE_DAYS = 3;
+  const VOTE_DAYS = 5;
 
   // ----- GitHub issues API -----------------------------------------------------
   function api(fetchFn, conn, method, path, body) {
