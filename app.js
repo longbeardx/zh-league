@@ -62,6 +62,7 @@
   let events = LS.get(conn && conn.demo ? "demoSocial" : "social", []);   // votes, accusations, complaints
   let me = LS.get("me", null);                      // set by your personal ID code; nobody picks a name
   let loaded = !!(conn && conn.demo) || doc.players.length > 0;   // league data received at least once
+  let keyProblem = false;                                          // the key couldn't open the league
   let tab = "nights";                                // the app always opens on Nights…
   { const m = location.hash.match(/^#t=(nights|rank|feed|justice|bets|admin)$/);   // …unless linked to a tab (#t=feed)
     if (m) { tab = m[1]; history.replaceState(null, "", location.pathname + location.search); } }
@@ -93,13 +94,13 @@
       .then(async ({ doc: d, status }) => {
         doc = d; saveLocal();
         if (status === "ok") {
-          loaded = true;
+          loaded = true; keyProblem = false;
           const pending = LS.get("pendingCode", null);
           if (pending) { LS.del("pendingCode"); await tryLogin(pending); }
           if (me && !P(me)) { me = null; LS.del("me"); }   // profile was deleted
           try { events = await ZS.load(fetch.bind(window), conn); LS.set("social", events); } catch {}
           LS.set("dirty", false); setStatus("ok", "Synced");
-        } else if (status === "auth") setStatus("err", "Key expired or wrong");
+        } else if (status === "auth") { setStatus("err", "Key expired or wrong"); if (!me) keyProblem = true; }
         else setStatus("err", LS.get("dirty", false) ? "Offline · will sync" : "Offline");
         render();
       })
@@ -131,6 +132,12 @@
 
   // ----- shell --------------------------------------------------------------------------
   function render() {
+    if (conn && !me && keyProblem) {
+      $("repo").value = conn.repo; $("connectErr").hidden = false;
+      $("connectErr").textContent = "This key can't open the league. On GitHub, check the key: repository access must include " +
+        conn.repo.split("/")[1] + ", with Contents and Issues set to “Read and write”. Then paste it again.";
+      conn = null; LS.del("conn"); keyProblem = false;
+    }
     const connected = !!conn, inside = connected && !!me && !!P(me);
     const firstRun = connected && !me && loaded && doc.players.length === 0;
     $("connectView").hidden = connected;
@@ -731,7 +738,7 @@
   $("connectBtn").addEventListener("click", async () => {
     const repo = $("repo").value.trim(), token = $("token").value.trim();
     if (!/^[\w.-]+\/[\w.-]+$/.test(repo) || token.length < 20) { $("connectErr").hidden = false; $("connectErr").textContent = "Check the repository (owner/repo) and the key."; return; }
-    conn = { repo, token }; LS.set("conn", conn); $("token").value = ""; loaded = false; render(); await sync(); render();
+    conn = { repo, token }; LS.set("conn", conn); $("token").value = ""; $("connectErr").hidden = true; loaded = false; render(); await sync(); render();
   });
   $("loginBtn").addEventListener("click", async () => {
     const code = $("codeIn").value, err = $("loginErr");
@@ -746,8 +753,7 @@
   $("forgetKey").addEventListener("click", () => { if (!confirm("Forget this key on this phone?")) return;
     ["conn", "doc", "me", "dirty", "social", "pendingCode", "vaultKey"].forEach(LS.del); conn = null; doc = ZH.emptyDoc(); events = []; me = null; loaded = false; render(); });
   $("firstBtn").addEventListener("click", async () => {
-    const name = $("firstAka").value.trim().replace(/\s+/g, " ");
-    if (!name) { toast("A commander needs a name."); return; }
+    const name = "Commander";        // the super admin renames everyone (themselves included) in Players
     const id = uid(), code = ZH.newCode(), now = Date.now();
     const [hashed, { vault, pkcs8 }] = await Promise.all([ZH.hashCode(code), ZH.createVault(code)]);
     const codeBox = await ZH.sealCode(vault, code);
@@ -756,6 +762,7 @@
     doc.players.push({ id, aka: name, sig: "", role: "super", ...hashed, codeBox, ts: now, updatedAt: now, inactive: [] });
     doc = ZH.merge(doc, null); me = id; LS.set("me", me); LS.set("dirty", true); saveLocal();
     codeReveal = { pid: id, code, mine: true }; tab = "admin"; render(); sync("Create league");
+    toast("You're in command. Save your code, then name yourself in Players → Edit.");
   });
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") sync(); });
   window.addEventListener("online", () => sync());
