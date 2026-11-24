@@ -316,12 +316,15 @@
   const radioDrafts = {};
   function radioInput(night) {
     if (!me) return null;
+    const used = ZS.radioStatements(events, night.id).filter((e) => e.by === me).length;
+    if (used >= ZS.RADIO_MAX) return h("p", { class: "note radio-used" }, "📡 You've used both transmissions for this night.");
     const inp = h("input", { class: "t radio-in", maxlength: 80, placeholder: "Say something on the radio…", value: radioDrafts[night.id] || "",
       oninput: (e) => { radioDrafts[night.id] = e.target.value; },
       onkeydown: (e) => { if (e.key === "Enter") send(); } });
     const send = async () => {
       const text = (radioDrafts[night.id] || "").trim().replace(/\s+/g, " ").slice(0, 80);
       if (!text) { toast("Radio silence. Very mysterious."); return; }
+      if (ZS.radioStatements(events, night.id).filter((e) => e.by === me).length >= ZS.RADIO_MAX) { toast("Two transmissions per night. The radio needs a break."); return; }
       radioDrafts[night.id] = "";                                     // clear first (posting redraws the screen)
       if (await postEvent({ t: "radio", night: night.id, text })) toast("📡 Transmitted. Everyone heard that.");
       else { radioDrafts[night.id] = text; render(); }                 // keep it if it failed

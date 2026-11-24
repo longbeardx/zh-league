@@ -121,8 +121,13 @@ const ZS = (() => {
     return out;
   }
 
-  // players' radio statements for a night, newest last (max 8 shown)
-  const radioStatements = (events, nightId) => events.filter((e) => e.t === "radio" && e.night === nightId && e.text).slice(-8);
+  // players' radio statements for a night: at most RADIO_MAX per player (their latest), newest last
+  const RADIO_MAX = 2;
+  function radioStatements(events, nightId) {
+    const all = events.filter((e) => e.t === "radio" && e.night === nightId && e.text), per = {};
+    for (let i = all.length - 1; i >= 0; i--) per[all[i].by] = (per[all[i].by] || 0) + 1, all[i].__n = per[all[i].by];
+    return all.filter((e) => e.__n <= RADIO_MAX).map(({ __n, ...e }) => e).slice(-16);
+  }
 
   // latest status line per player (deleting the newest one brings back the previous)
   function statuses(events) {
@@ -178,6 +183,6 @@ const ZS = (() => {
   const randomLabel = () => LABELS[Math.floor(Math.random() * LABELS.length)];
   const randomStamp = () => STAMPS[Math.floor(Math.random() * STAMPS.length)];
 
-  return { load, post, remove, moods, moodLine, statuses, reactions, radioStatements, nightVotes, winners, votingOpen, cases, profileCounts, LABELS, STAMPS, randomLabel, randomStamp, VOTE_DAYS };
+  return { load, post, remove, moods, moodLine, statuses, reactions, radioStatements, RADIO_MAX, nightVotes, winners, votingOpen, cases, profileCounts, LABELS, STAMPS, randomLabel, randomStamp, VOTE_DAYS };
 })();
 if (typeof module !== "undefined") module.exports = ZS;
