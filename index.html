@@ -94,6 +94,11 @@
   .radio-ticker .belt { display: inline-flex; white-space: nowrap; animation: ticker linear infinite; will-change: transform; }
   .radio-ticker .belt span { font: 600 13px ui-monospace, "Cascadia Mono", monospace; color: var(--green); text-shadow: 0 0 6px rgba(127, 216, 92, .55); padding-right: 0; }
   @keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  .radio-ticker .belt .said, .radio-ticker .full .said { color: var(--gold); text-shadow: 0 0 6px rgba(242, 182, 50, .55); }
+  .radio-ticker .sep { color: var(--green); }
+  .radio-say { display: flex; gap: 8px; margin-top: 8px; align-items: stretch; }
+  .radio-say .radio-in { flex: 1; padding: 8px 10px; font-size: 14px; }
+  .radio-say .btn.small { white-space: nowrap; }
   .radio-ticker .full { display: none; padding: 8px 10px; font-size: 13px; color: #cfd8b8; }
   .radio-ticker .full p { margin: 3px 0; }
   @media (prefers-reduced-motion: reduce) {

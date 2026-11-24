@@ -279,7 +279,9 @@
     panel.append(games);
     if (rep.absent.length) panel.append(h("div", { class: "absent" }, "−0.5 for skipping: " + rep.absent.map(aka).join(", ")));
     const lines = ZH.roastLines(doc, n);
-    if (lines.length) panel.append(radioTicker(n.id, lines));
+    const said = ZS.radioStatements(events, n.id);
+    if (lines.length || said.length) panel.append(radioTicker(n.id, lines, said));
+    if (rep.games.length && ZS.votingOpen(n)) panel.append(radioInput(n));
     if (rep.games.length) panel.append(voteBox(n, rep, votes));
     if (writable) {
       if (gameOpen === n.id) panel.append(gameForm(n));
@@ -293,14 +295,34 @@
   }
 
   // Radio chatter as a scrolling LED ticker (display only)
-  function radioTicker(key, lines) {
-    const text = lines.join("   ✦   ") + "   ✦   ";
-    const secs = Math.max(12, Math.round(text.length / 7));          // ~7 characters per second
-    return h("div", { class: "radio-ticker", "aria-label": "Radio chatter: " + lines.join(" · ") },
+  function radioTicker(key, lines, said) {
+    // players' statements first (in their own colour), then the radio chatter
+    const items = [...said.map((e) => ({ t: `📢 ${aka(e.by)}: ${e.text}`, player: true })), ...lines.map((l) => ({ t: l }))];
+    const sep = () => h("span", { class: "sep" }, "   ✦   ");
+    const strip = () => h("span", {}, items.flatMap((x) => [h("span", { class: x.player ? "said" : null }, x.t), sep()]));
+    const chars = items.reduce((n, x) => n + x.t.length + 7, 0);
+    const secs = Math.max(12, Math.round(chars / 7));                 // ~7 characters per second
+    return h("div", { class: "radio-ticker", "aria-label": "Radio: " + items.map((x) => x.t).join(" · ") },
       h("span", { class: "tag" }, "📻 RADIO"),
       h("div", { class: "track", "aria-hidden": "true" },
-        h("div", { class: "belt", style: `animation-duration:${secs}s` }, h("span", {}, text), h("span", {}, text))),
-      h("div", { class: "full" }, lines.map((l) => h("p", {}, l))));   // shown only to reduced-motion users
+        h("div", { class: "belt", style: `animation-duration:${secs}s` }, strip(), strip())),
+      h("div", { class: "full" }, items.map((x) => h("p", { class: x.player ? "said" : null }, x.t))));   // reduced-motion users
+  }
+  // say something on a night's radio (open while voting is open)
+  const radioDrafts = {};
+  function radioInput(night) {
+    if (!me) return null;
+    const inp = h("input", { class: "t radio-in", maxlength: 80, placeholder: "Say something on the radio…", value: radioDrafts[night.id] || "",
+      oninput: (e) => { radioDrafts[night.id] = e.target.value; },
+      onkeydown: (e) => { if (e.key === "Enter") send(); } });
+    const send = async () => {
+      const text = (radioDrafts[night.id] || "").trim().replace(/\s+/g, " ").slice(0, 80);
+      if (!text) { toast("Radio silence. Very mysterious."); return; }
+      radioDrafts[night.id] = "";                                     // clear first (posting redraws the screen)
+      if (await postEvent({ t: "radio", night: night.id, text })) toast("📡 Transmitted. Everyone heard that.");
+      else { radioDrafts[night.id] = text; render(); }                 // keep it if it failed
+    };
+    return h("div", { class: "radio-say" }, inp, h("button", { class: "btn small", type: "button", onclick: send }, "📡 Transmit"));
   }
 
   function voteBox(night, rep, votes) {
@@ -378,6 +400,10 @@
     events.slice().reverse().forEach((e) => {
       if (e.t === "accuse") items.push(accuseItem(caseById[e.id], e));
       else if (e.t === "complaint") items.push(complaintItem(e));
+      else if (e.t === "radio" && e.text) {
+        const night = doc.nights.find((x) => x.id === e.night);
+        items.push(feedRow(e, "📻", `${aka(e.by)} on the radio${night ? " (" + dayLabel(night.ts) + ")" : ""}: “${e.text}”`, true));
+      }
       else if (e.t === "status" && e.text) items.push(feedRow(e, "💬", `${aka(e.by)} set a status: “${e.text}”`, true));
       else if (e.t === "mood") items.push(feedRow(e, e.upset ? "😤" : "😌", `${aka(e.by)} ${e.upset ? "GOT UPSET" : "CALMED DOWN"} · ${ZS.moodLine(e)}`, true));
       else if (e.t === "vote" && e.target) {

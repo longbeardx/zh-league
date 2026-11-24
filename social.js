@@ -11,6 +11,7 @@
  *   {t:"mood",      upset: true|false, by, at}      the "get upset" toggle
  *   {t:"status",    text, by, at}                   personal status line ("" clears it)
  *   {t:"react",     target, kind: "fuck"|"endorse"|null, by, at}   one reaction per person per post
+ *   {t:"radio",     night, text, by, at}            a player's short statement on a night's radio
  * Later events from the same person replace earlier ones (re-voting).
  */
 const ZS = (() => {
@@ -120,6 +121,9 @@ const ZS = (() => {
     return out;
   }
 
+  // players' radio statements for a night, newest last (max 8 shown)
+  const radioStatements = (events, nightId) => events.filter((e) => e.t === "radio" && e.night === nightId && e.text).slice(-8);
+
   // latest status line per player (deleting the newest one brings back the previous)
   function statuses(events) {
     const out = {};
@@ -174,6 +178,6 @@ const ZS = (() => {
   const randomLabel = () => LABELS[Math.floor(Math.random() * LABELS.length)];
   const randomStamp = () => STAMPS[Math.floor(Math.random() * STAMPS.length)];
 
-  return { load, post, remove, moods, moodLine, statuses, reactions, nightVotes, winners, votingOpen, cases, profileCounts, LABELS, STAMPS, randomLabel, randomStamp, VOTE_DAYS };
+  return { load, post, remove, moods, moodLine, statuses, reactions, radioStatements, nightVotes, winners, votingOpen, cases, profileCounts, LABELS, STAMPS, randomLabel, randomStamp, VOTE_DAYS };
 })();
 if (typeof module !== "undefined") module.exports = ZS;
