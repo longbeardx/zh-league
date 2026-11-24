@@ -504,7 +504,7 @@
     mine.append(h("p", { class: "note" }, "You are ", h("b", {}, aka(me)), "."));
     if (me) {
       const cur = (ZS.statuses(events)[me] || {}).text || "";
-      const inp = h("input", { class: "t", maxlength: 60, value: cur, placeholder: "e.g. back from vacation, fear me" });
+      const inp = h("input", { class: "t", maxlength: 60, value: cur, placeholder: "e.g. noob" });
       mine.append(h("label", { class: "f" }, "Status (shows under your name)"), inp,
         h("div", { class: "row" },
           h("button", { class: "btn", type: "button", onclick: async () => {
