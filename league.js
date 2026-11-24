@@ -171,10 +171,13 @@ const ZH = (() => {
     ],
     mostlyWon: [
       "{a} went {w}–{l}. Solid night. Still found something to complain about.",
-      "{a} finished {w}–{l}. The one loss was “definitely lag”.",
+      "{a} finished {w}–{l}. Any loss was “definitely lag”.",
       "{a} went {w}–{l}. Good night. Will still mention the loss for a month.",
       "{a} {w}–{l}. Solid. Suspiciously solid.",
       "{a} finished {w}–{l}. Any losses were “for balance”.",
+      "{a} went {w}–{l}. Respectable. Don't tell him, it'll go to his head.",
+      "{a} {w}–{l}. Came, saw, mostly conquered.",
+      "{a} finished {w}–{l}. A good night, ruined only by the losses.",
     ],
     mostlyLost: [
       "{a} went {w}–{l}. The win was luck, the losses were also luck, apparently.",
@@ -182,6 +185,9 @@ const ZH = (() => {
       "{a} went {w}–{l}. Whatever he won was “the real me”. The rest was lag.",
       "{a} {w}–{l}. He'll remember the good parts. We'll remember the rest.",
       "{a} finished {w}–{l}. Moral victory claimed. Actual victory: rare.",
+      "{a} went {w}–{l}. At least he showed up. That's something.",
+      "{a} {w}–{l}. The comeback is scheduled for next week. Allegedly.",
+      "{a} finished {w}–{l}. He won some and is acting like it was a tournament.",
     ],
     absent: [
       "{a} skipped the night: −0.5 and a formal letter from the Department of Justice.",
@@ -211,6 +217,30 @@ const ZH = (() => {
       "{w} won the 1v1 against {l}. {l} says it was a warm-up. It was not.",
       "{w} beat {l} in a 1v1 tonight. Screenshots are being made.",
       "{l} lost the 1v1 to {w} and is now “reviewing his life choices”.",
+      "{w} beat {l} 1v1. {l} has blocked him on all platforms. Temporarily.",
+      "1v1 report: {w} 1, {l}'s pride 0.",
+    ],
+    radio: [
+      "Radio check: {a}, do you copy? … {a} is busy blaming the map.",
+      "Static on the line. Somebody's crying into the mic.",
+      "Command to all units: stop building Patriots. Please.",
+      "{a} requested air support. Air support declined.",
+      "Intercepted transmission: “who keeps stealing my supplies?”",
+      "Reports of a Tunnel Network under {a}'s base. Unconfirmed.",
+      "GLA workers report overtime. Nobody is paying them.",
+      "{a} asked for a rematch before the set was even over.",
+      "Weather on the battlefield: clear skies, heavy salt.",
+      "Comms log: 47 “gg”s, 2 sincere.",
+      "Someone said “one more set” 4 sets ago.",
+      "{a} is typing… still typing… gave up.",
+      "Radio silence from {a}. Thinking about life, probably.",
+      "Unidentified Aurora spotted over {a}'s base. Again.",
+      "Command reminds everyone: the map is not the problem.",
+      "{a} called it “a strategic retreat”. It was running.",
+      "Black Lotus reported near the supply depot. Hide your money.",
+      "All units: {a} has the high ground. Nobody knows how.",
+      "Late-night chatter: “last set, I swear.”",
+      "{a} put on headphones. Things just got serious.",
     ],
     general: [
       "{sets} tonight. No civilians were harmed. Several egos were.",
@@ -244,10 +274,17 @@ const ZH = (() => {
       const pair = g.type === "1v1" && [g.teamA[0], g.teamB[0]].sort().join("|");
       if (pair && !duels.has(pair)) duels.add(pair), lines.push(fill(take(ROAST.duel), { w: aka((g.winner === "A" ? g.teamA : g.teamB)[0]), l: aka((g.winner === "A" ? g.teamB : g.teamA)[0]) }));
     }
-    for (const [k, n] of Object.entries(duos)) if (n >= 2) { const [a, b] = k.split("|"); lines.push(fill(take(ROAST.duo), { a: aka(a), b: aka(b), n })); }
+    const bestDuo = Object.entries(duos).filter(([, n]) => n >= 2).sort((x, y) => y[1] - x[1] || (x[0] < y[0] ? -1 : 1))[0];
+    if (bestDuo) { const [a, b] = bestDuo[0].split("|"); lines.push(fill(take(ROAST.duo), { a: aka(a), b: aka(b), n: bestDuo[1] })); }   // one duo per night
     if (rep.games.length) lines.push(fill(take(ROAST.general), { n: rep.games.length,
       sets: rep.games.length === 1 ? "1 set" : rep.games.length + " sets" }));
-    return shuffle(r, lines).slice(0, 5);
+    const picked = shuffle(r, lines).slice(0, 5);
+    const played = Object.keys(rep.per);
+    for (let guard = 0; rep.games.length && picked.length < 5 && guard < 40; guard++) {
+      const line = fill(take(ROAST.radio), { a: played.length ? aka(played[Math.floor(r() * played.length)]) : "Someone" });
+      if (!picked.includes(line)) picked.push(line);
+    }
+    return shuffle(r, picked);
   }
 
   const NEWS = {
