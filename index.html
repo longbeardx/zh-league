@@ -85,6 +85,29 @@
   .radio { margin: 10px 0 0; padding: 8px 10px 8px 12px; border-left: 2px solid var(--green); background: rgba(127, 216, 92, .05); font-size: 13px; color: #cfd8b8; }
   .radio p { margin: 3px 0; }
   .radio .tag { font: 700 10px var(--head); letter-spacing: .14em; color: var(--green); }
+  .radio-ticker { margin: 10px 0 0; display: flex; align-items: stretch; border: 1px solid #23401b; background: #071006; cursor: pointer;
+    box-shadow: inset 0 0 12px rgba(127, 216, 92, .12); overflow: hidden; }
+  .radio-ticker .tag { flex: none; display: flex; align-items: center; padding: 0 8px; font: 700 10px var(--head); letter-spacing: .14em;
+    color: #071006; background: var(--green); }
+  .radio-ticker .track { flex: 1; overflow: hidden; position: relative; padding: 8px 0;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); }
+  .radio-ticker .belt { display: inline-flex; white-space: nowrap; animation: ticker linear infinite; will-change: transform; }
+  .radio-ticker .belt span { font: 600 13px ui-monospace, "Cascadia Mono", monospace; color: var(--green); text-shadow: 0 0 6px rgba(127, 216, 92, .55); padding-right: 0; }
+  @keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  .radio-ticker .full { display: none; padding: 8px 10px; font-size: 13px; color: #cfd8b8; }
+  .radio-ticker .full p { margin: 3px 0; }
+  .radio-ticker .full small { color: var(--green); font: 600 10px var(--head); letter-spacing: .12em; }
+  .radio-ticker.paused { flex-direction: column; }
+  .radio-ticker.paused .tag { padding: 4px 8px; align-self: flex-start; }
+  .radio-ticker.paused .track { display: none; }
+  .radio-ticker.paused .full { display: block; }
+  @media (prefers-reduced-motion: reduce) {
+    .radio-ticker { flex-direction: column; }
+    .radio-ticker .tag { padding: 4px 8px; align-self: flex-start; }
+    .radio-ticker .track { display: none; }
+    .radio-ticker .full { display: block; }
+    .radio-ticker .full small { display: none; }
+  }
   .absent { font-size: 13px; color: var(--red); margin-top: 8px; }
   .sub { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--edge); }
   .older { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 11px 2px; border-top: 1px solid var(--line); cursor: pointer; }

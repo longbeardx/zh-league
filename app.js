@@ -279,7 +279,7 @@
     panel.append(games);
     if (rep.absent.length) panel.append(h("div", { class: "absent" }, "−0.5 for skipping: " + rep.absent.map(aka).join(", ")));
     const lines = ZH.roastLines(doc, n);
-    if (lines.length) panel.append(h("div", { class: "radio" }, h("span", { class: "tag" }, "📻 RADIO CHATTER"), lines.map((l) => h("p", {}, l))));
+    if (lines.length) panel.append(radioTicker(n.id, lines));
     if (rep.games.length) panel.append(voteBox(n, rep, votes));
     if (writable) {
       if (gameOpen === n.id) panel.append(gameForm(n));
@@ -290,6 +290,22 @@
         change("Delete night", (d) => { d.deleted.push(n.id); rep.games.forEach((g) => d.deleted.push(g.id)); });
     } }, "Delete this night"));
     return panel;
+  }
+
+  // Radio chatter as a scrolling LED ticker; tap to pause and read everything
+  const tickerPaused = new Set();
+  function radioTicker(key, lines) {
+    const paused = tickerPaused.has(key);
+    const text = lines.join("   ✦   ") + "   ✦   ";
+    const secs = Math.max(12, Math.round(text.length / 7));          // ~7 characters per second
+    const wrap = h("div", { class: "radio-ticker" + (paused ? " paused" : ""), role: "button", tabindex: "0",
+      "aria-label": paused ? "Radio chatter (tap to resume scrolling)" : "Radio chatter (tap to pause and read)",
+      onclick: () => { paused ? tickerPaused.delete(key) : tickerPaused.add(key); render(); } },
+      h("span", { class: "tag" }, "📻 RADIO"),
+      h("div", { class: "track" },
+        h("div", { class: "belt", style: `animation-duration:${secs}s` }, h("span", {}, text), h("span", { "aria-hidden": "true" }, text))),
+      h("div", { class: "full" }, lines.map((l) => h("p", {}, l)), h("small", {}, "Tap to resume ▶")));
+    return wrap;
   }
 
   function voteBox(night, rep, votes) {
