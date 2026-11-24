@@ -30,12 +30,11 @@
   const GLA = ["I will work!", "Do not hurt me!", "Yes, boss?", "Working…", "We will rebuild!"];
   const gla = () => GLA[Math.floor(Math.random() * GLA.length)];
   const SIGNATURES = ["", "🍆", "🥊", "🗡️", "💣", "🧨", "🔥", "🐓", "🦂", "🪓", "🧄", "🥾", "🍑", "🐍", "👊", "🫵", "🐐", "👻", "🦍", "🥔"];
-  const CRIMES = ["Carried all night, now acting like a legend",
-    "Batenjene landed on me out of nowhere 🍆", "Too many Auroras. Nobody needs that many Auroras ✈️",
-    "Teams were unfairly distributed. Obviously. Every single time ⚖️", "My faction was secretly nerfed, just for me, just tonight",
-    "Rushed me at minute two like an animal", "My mouse was possessed",
-    "Teammate went AFK to make tea", "Suspicious amount of luck", "Built 40 tanks and called it “strategy”",
-    "Spammed GLA workers in my base", "Lag (it is always lag)", "Emotional damage from the scoreboard"];
+  const CRIMES = ["Suspicious amount of luck 🍀", "Teams were unfairly distributed. Every single time ⚖️",
+    "Too many Auroras. Nobody needs that many Auroras ✈️", "Camped behind 14 Patriots and called it “strategy” 🛡️",
+    "Left “to get water” and came back after we lost 🚰"];
+  const ACCUSE_PROMPTS = ["Describe the crime. Be dramatic.", "What did he do this time?", "Tell the court everything. Leave out nothing.",
+    "Explain, slowly, how he ruined your night.", "Speak. The court is (mostly) listening."];
 
   // ----- links: …/#join=<base64url {"r":repo,"t":shared key,"c"?:personal ID code}> -----
   // Group link = repo + shared key (then you type your ID code). A personal link also
@@ -442,18 +441,18 @@
         justiceMode = justiceMode === "complain" ? null : "complain"; if (justiceMode && !complaintDraft) complaintDraft = { label: ZS.randomLabel(), text: "" }; render(); } }, h("span", {}, "📮"), "File a complaint")));
 
     if (justiceMode === "accuse") {
-      if (!accuseDraft) accuseDraft = { target: "", charges: new Set(), text: "" };
+      if (!accuseDraft) accuseDraft = { target: "", charges: new Set(), text: "", prompt: ACCUSE_PROMPTS[Math.floor(Math.random() * ACCUSE_PROMPTS.length)] };
       const a = accuseDraft;
       box.append(h("div", { class: "card" },
         h("label", { class: "f", for: "accused", style: "margin-top:0" }, "The accused"),
         h("select", { class: "t", id: "accused", onchange: (ev) => { a.target = ev.target.value; } },
           h("option", { value: "" }, "— choose the guilty party —"),
           playersSorted().filter((p) => p.id !== me).map((p) => h("option", { value: p.id, selected: p.id === a.target }, nm(p)))),
-        h("label", { class: "f" }, "Charges"),
-        h("div", { class: "checks" }, CRIMES.map((cr) => h("label", {}, h("input", { type: "checkbox", checked: a.charges.has(cr),
-          onchange: (ev) => { ev.target.checked ? a.charges.add(cr) : a.charges.delete(cr); } }), cr))),
-        h("label", { class: "f", for: "stmt" }, "Statement (optional)"),
-        h("textarea", { class: "t", id: "stmt", maxlength: 280, placeholder: "It was a dark and stormy night. I had 6 tanks…", oninput: (ev) => { a.text = ev.target.value; } }, a.text),
+        h("label", { class: "f", for: "stmt" }, "What did he do?"),
+        h("textarea", { class: "t", id: "stmt", maxlength: 280, placeholder: a.prompt, oninput: (ev) => { a.text = ev.target.value; } }, a.text),
+        h("label", { class: "f" }, "Add charges (optional)"),
+        h("div", { class: "seg charges-pick" }, CRIMES.map((cr) => h("button", { type: "button", "aria-pressed": String(a.charges.has(cr)),
+          onclick: () => { a.charges.has(cr) ? a.charges.delete(cr) : a.charges.add(cr); render(); } }, cr))),
         h("button", { class: "btn", type: "button", onclick: async () => {
           if (!a.target) { toast("The court needs someone to blame."); return; }
           if (!a.charges.size && !a.text.trim()) { toast("Accuse him of SOMETHING."); return; }
