@@ -475,10 +475,11 @@ const ZH = (() => {
         gossip = fill(tpl, { a: aka(a), b: others.length ? aka(others[Math.floor(r() * others.length)].id) : "" });
     }
     out.push(take(NEWS.filler));
-    // front page: up to 2 stories from last night, then the gossip, then season news
+    // front page (5 headlines): up to 2 stories from last night, season news, and the
+    // gossip line always LAST
     const heads = shuffle(r, nightOut).slice(0, 2);
+    for (const x of shuffle(r, out)) { if (heads.length >= (gossip ? 4 : 5)) break; heads.push(x); }
     if (gossip) heads.push(gossip);
-    for (const x of shuffle(r, out)) { if (heads.length >= 7) break; heads.push(x); }
     return heads;
   }
 
