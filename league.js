@@ -275,6 +275,14 @@ const ZH = (() => {
     nemesis: ["{a} has beaten {b} {n} times this season. {b} calls it “a personal matter”.", "Diplomatic crisis: {b} lost to {a} {n} times and refuses to comment.", "{a} beat {b} {n} times this season. {b} has stopped making eye contact.", "{a} has {n} wins over {b} this season. {b} remains “not bothered”.", "{b} has lost to {a} {n} times. Peace talks have failed."],
     gossip: [
       "{a} spotted holding hands with Black Lotus in a tent in Tournament Desert.",
+      "{a} caught buying 30 Auroras “for a friend”.",
+      "{a} seen crying in a Chinook. The Chinook is fine.",
+      "{a} spotted at a GLA worker party, still “going to get water”. 🚰",
+      "Paparazzi catch {a} practising against the easy AI. He lost.",
+      "{a} seen leaving {b}'s base at 3 a.m. with a Black Lotus and no explanation.",
+      "{a} found hiding in a bunker in Tournament Desert. Says he's “scouting”.",
+      "Insiders say {a} has a secret Overlord collection. 47 and counting.",
+      "{a} and {b} have ended their 2v2 partnership. Fans devastated. Nobody else cares.",
     ],
     filler: [
       "Weather forecast: heavy artillery with a 90% chance of rage-quits.",
@@ -312,11 +320,21 @@ const ZH = (() => {
       if (x.absences >= 2) out.push(fill(take(NEWS.ghost), { a: aka(x.id), n: x.absences }));
       if (x.victim && x.victim.n >= 3) out.push(fill(take(NEWS.nemesis), { a: aka(x.id), b: aka(x.victim.id), n: x.victim.n }));
     });
-    // gossip about a random player (about every other edition)
+    let gossip = null;
+    // one gossip line per edition, cycling through all of them before any repeats;
+    // the players in it are random ({b} is always someone other than {a})
     const pool = table.length ? table : doc.players.filter((p) => isActiveNow(p)).map((p) => ({ id: p.id }));
-    if (pool.length && r() < 0.5) out.push(fill(take(NEWS.gossip), { a: aka(pool[Math.floor(r() * pool.length)].id) }));
+    if (pool.length) {
+      const order = shuffle(rng("gossip:" + sid), NEWS.gossip);
+      const tpl = order[nights.length % order.length];
+      const a = pool[Math.floor(r() * pool.length)].id, others = pool.filter((x) => x.id !== a);
+      if (!tpl.includes("{b}") || others.length)
+        gossip = fill(tpl, { a: aka(a), b: others.length ? aka(others[Math.floor(r() * others.length)].id) : "" });
+    }
     out.push(take(NEWS.filler));
-    return shuffle(r, out).slice(0, 6);
+    const heads = shuffle(r, out).slice(0, gossip ? 5 : 6);
+    if (gossip) heads.splice(Math.min(1, heads.length), 0, gossip);   // always on the front page, 2nd headline
+    return heads;
   }
 
   // ----- personal ID codes -------------------------------------------------------
