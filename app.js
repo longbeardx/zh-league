@@ -292,20 +292,15 @@
     return panel;
   }
 
-  // Radio chatter as a scrolling LED ticker; tap to pause and read everything
-  const tickerPaused = new Set();
+  // Radio chatter as a scrolling LED ticker (display only)
   function radioTicker(key, lines) {
-    const paused = tickerPaused.has(key);
     const text = lines.join("   ✦   ") + "   ✦   ";
     const secs = Math.max(12, Math.round(text.length / 7));          // ~7 characters per second
-    const wrap = h("div", { class: "radio-ticker" + (paused ? " paused" : ""), role: "button", tabindex: "0",
-      "aria-label": paused ? "Radio chatter (tap to resume scrolling)" : "Radio chatter (tap to pause and read)",
-      onclick: () => { paused ? tickerPaused.delete(key) : tickerPaused.add(key); render(); } },
+    return h("div", { class: "radio-ticker", "aria-label": "Radio chatter: " + lines.join(" · ") },
       h("span", { class: "tag" }, "📻 RADIO"),
-      h("div", { class: "track" },
-        h("div", { class: "belt", style: `animation-duration:${secs}s` }, h("span", {}, text), h("span", { "aria-hidden": "true" }, text))),
-      h("div", { class: "full" }, lines.map((l) => h("p", {}, l)), h("small", {}, "Tap to resume ▶")));
-    return wrap;
+      h("div", { class: "track", "aria-hidden": "true" },
+        h("div", { class: "belt", style: `animation-duration:${secs}s` }, h("span", {}, text), h("span", {}, text))),
+      h("div", { class: "full" }, lines.map((l) => h("p", {}, l))));   // shown only to reduced-motion users
   }
 
   function voteBox(night, rep, votes) {
