@@ -306,14 +306,15 @@ const ZH = (() => {
   function headlines(doc, sid) {
     const season = doc.seasons.find((s) => s.id === sid);
     if (!season) return [];
-    const table = standings(doc, sid).filter((x) => x.games > 0 || x.absences > 0);
+    const ranking = standings(doc, sid);                       // exactly what the Ranking tab shows (👑 first, 💩 last)
+    const table = ranking.filter((x) => x.games > 0 || x.absences > 0);
     const nights = nightsOf(doc, sid), last = nights[nights.length - 1];
     const r = rng("news:" + sid + ":" + (last ? last.id : "none") + ":" + table.length), take = deck(r);
     const aka = (id) => displayName(player(doc, id));
     const out = [];
     if (table.length >= 2) {
-      out.push(fill(take(NEWS.leader), { a: aka(table[0].id), s: season.name, p: table[0].pts }));
-      out.push(fill(take(NEWS.last), { a: aka(table[table.length - 1].id), s: season.name }));
+      out.push(fill(take(NEWS.leader), { a: aka(ranking[0].id), s: season.name, p: ranking[0].pts }));
+      out.push(fill(take(NEWS.last), { a: aka(ranking[ranking.length - 1].id), s: season.name }));
     }
     table.forEach((x) => {
       if (x.streak && x.streak.n >= 3) out.push(fill(take(x.streak.kind === "W" ? NEWS.hot : NEWS.cold), { a: aka(x.id), n: x.streak.n }));
