@@ -101,6 +101,7 @@
           try { events = await ZS.load(fetch.bind(window), conn); LS.set("social", events); } catch {}
           LS.set("dirty", false); setStatus("ok", "Synced");
         } else if (status === "auth") { setStatus("err", "Key expired or wrong"); if (!me) keyProblem = true; }
+        else if (status === "public") { setStatus("err", "Public repo"); if (!me) keyProblem = "public"; }
         else setStatus("err", LS.get("dirty", false) ? "Offline · will sync" : "Offline");
         render();
       })
@@ -134,8 +135,10 @@
   function render() {
     if (conn && !me && keyProblem) {
       $("repo").value = conn.repo; $("connectErr").hidden = false;
-      $("connectErr").textContent = "This key can't open the league. On GitHub, check the key: repository access must include " +
-        conn.repo.split("/")[1] + ", with Contents and Issues set to “Read and write”. Then paste it again.";
+      $("connectErr").textContent = keyProblem === "public"
+        ? "“" + conn.repo + "” is a PUBLIC repository. League data must live in a private one (e.g. your …-data repo). Check the repository name."
+        : "This key can't open the league. On GitHub, check the key: repository access must include " +
+          conn.repo.split("/")[1] + ", with Contents and Issues set to “Read and write”. Then paste it again.";
       conn = null; LS.del("conn"); keyProblem = false;
     }
     const connected = !!conn, inside = connected && !!me && !!P(me);

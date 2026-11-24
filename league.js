@@ -389,6 +389,8 @@ const ZH = (() => {
             headers: { Authorization: `Bearer ${conn.token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" } });
           if (repo.status === 401 || repo.status === 403 || repo.status === 404) return { doc, status: "auth" };
           if (!repo.ok) return { doc, status: "offline" };
+          // never start a league in a PUBLIC repo: everyone on the internet could read it
+          if (!(await repo.json()).private) return { doc, status: "public" };
           if (opts.readOnly) return { doc, status: "ok" };      // empty league; nothing to read yet
         }
         doc = merge(doc, remote);
