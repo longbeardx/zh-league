@@ -253,21 +253,37 @@ const ZH = (() => {
   const NEWS = {
     leader: [
       "BREAKING: {a} leads {s} with {p} points. Rest of the lobby “not worried”.",
-      "{a} spotted at the top of the {s} table again. Neighbours complain about the noise.",
       "{a} tops {s}. Experts suspect bribery, possibly involving shawarma.",
       "{a} sits on top of {s} with {p} points. Bow accordingly.",
       "MARKETS REACT: {a} leads {s}. Panic in the lobby.",
-      "{a} still first in {s}. Sources describe him as “insufferable”.",
       "Top of {s}: {a}, {p} points. Rival generals hold an emergency meeting.",
     ],
     last: [
       "{a} holds last place in {s}, proudly wearing the 💩. “Do not hurt me!” he told reporters.",
       "Local commander {a} discovers a new tactic: losing. Analysts call it “bold”.",
-      "{a} confirmed in last place. Says he's “letting the others feel good about themselves”.",
       "{a} anchors the {s} table. Someone has to.",
-      "{a} remains in last place. Scientists study him for answers.",
       "EXCLUSIVE: {a} says last place is “just a phase”.",
       "{a} at the bottom of {s}. His fans (one) remain hopeful.",
+    ],
+    leaderSteady: [
+      "{a} spotted at the top of the {s} table again. Neighbours complain about the noise.",
+      "{a} still first in {s}. Sources describe him as “insufferable”.",
+    ],
+    leaderNew: [
+      "SHOCK: {a} takes first place in {s}. Experts are checking the math.",
+      "Underdog alert: {a} climbs to the top of {s}. The lobby is in disbelief.",
+      "{a} is first in {s}. Screenshots are being taken before it ends.",
+      "New leader! {a} takes the crown in {s}. Nobody saw this coming, least of all {a}.",
+      "{a} leads {s} with {p} points. His family has been informed.",
+    ],
+    lastSteady: [
+      "{a} remains in last place. Scientists study him for answers.",
+      "{a} confirmed in last place. Says he's “letting the others feel good about themselves”.",
+    ],
+    lastNew: [
+      "{a} drops to last place in {s}. The 💩 has a new owner.",
+      "BREAKING: {a} inherits the 💩.",
+      "{a} hits the bottom of {s}. Says he “meant to do that”.",
     ],
     hot: ["{a} wins {n} in a row. Opponents have formed a support group.", "{a} is on a {n}-set streak. Somebody unplug his router.", "{a}: {n} wins in a row. Opponents considering a new hobby.", "{a} is on fire ({n} straight). Bring a fire extinguisher. And an Aurora.", "{n} wins in a row for {a}. The lobby demands a recount."],
     cold: ["{a} has lost {n} straight. “I will work!” he insists. Evidence suggests otherwise.", "{a}: {n} losses in a row. His mouse is now in witness protection.", "{a}: {n} losses in a row. His mouse has asked to be reassigned.", "{a} has lost {n} straight. Teams, of course, were unfairly distributed.", "{n}-set losing streak for {a}. A support hotline has been set up."],
@@ -313,8 +329,17 @@ const ZH = (() => {
     const aka = (id) => displayName(player(doc, id));
     const out = [];
     if (table.length >= 2) {
-      out.push(fill(take(NEWS.leader), { a: aka(ranking[0].id), s: season.name, p: ranking[0].pts }));
-      out.push(fill(take(NEWS.last), { a: aka(ranking[ranking.length - 1].id), s: season.name }));
+      // "still"/"again" only if he held that spot after the previous night too
+      let prev = null;
+      if (nights.length >= 2) {
+        const before = standings({ ...doc, nights: doc.nights.filter((n) => n.id !== last.id) }, sid);
+        if (before.filter((x) => x.games > 0 || x.absences > 0).length >= 2) prev = before;
+      }
+      const top = ranking[0].id, bottom = ranking[ranking.length - 1].id;
+      const leadPool = NEWS.leader.concat(prev && prev[0].id === top ? NEWS.leaderSteady : NEWS.leaderNew);
+      const lastPool = NEWS.last.concat(prev && prev[prev.length - 1].id === bottom ? NEWS.lastSteady : NEWS.lastNew);
+      out.push(fill(take(leadPool), { a: aka(top), s: season.name, p: ranking[0].pts }));
+      out.push(fill(take(lastPool), { a: aka(bottom), s: season.name }));
     }
     table.forEach((x) => {
       if (x.streak && x.streak.n >= 3) out.push(fill(take(x.streak.kind === "W" ? NEWS.hot : NEWS.cold), { a: aka(x.id), n: x.streak.n }));
