@@ -254,6 +254,9 @@
   .hbar i { height: 10px; background: var(--field); } .hbar em { display: block; height: 100%; background: var(--accent); border-radius: 0 4px 4px 0; }
   .hbar b { text-align: right; }
   @media (max-width: 420px) { .actrow { flex-wrap: wrap; } .actrow .nums { width: 100%; justify-content: flex-end; } }
+  .viewbar { position: sticky; top: 0; z-index: 8; display: flex; align-items: center; justify-content: space-between; gap: 10px; max-width: 560px; margin: 0 auto 10px; padding: 8px 12px; background: var(--accent); color: var(--accent-ink); font: 600 13px system-ui, sans-serif; }
+  .viewbar b { font-family: var(--head); letter-spacing: .06em; }
+  .viewbar button { background: var(--accent-ink); color: #0b2a4d; border: 0; padding: 6px 14px; font: 700 12px var(--head); letter-spacing: .1em; text-transform: uppercase; cursor: pointer; }
   .toast { position: fixed; left: 50%; bottom: calc(82px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--accent); color: var(--accent-ink); padding: 10px 16px; font: 600 14px system-ui, sans-serif; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 90vw; text-align: center; z-index: 9; clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
   .toast.show { opacity: 1; }
 </style>
@@ -295,6 +298,7 @@
   <button class="btn" id="firstBtn" type="button">Take command</button>
 </section>
 
+<div class="viewbar" id="viewBar" hidden><span>👁 Viewing as <b id="viewName"></b> · read-only</span><button type="button" id="viewExit">Exit</button></div>
 <main id="app" hidden>
   <section id="tab-rank"></section>
   <section id="tab-nights" hidden></section>

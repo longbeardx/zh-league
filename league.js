@@ -330,7 +330,6 @@ const ZH = (() => {
     ],
     nightFlop: [
       "LAST NIGHT: {a} drops {l} sets. A moment of silence, please.",
-      "{a} lost {l} sets last night. His keyboard is under investigation.",
       "{a} lost {l} sets last night. Teams were, of course, unfairly distributed.",
       "{a}'s night: {l} losses and one long sigh.",
     ],

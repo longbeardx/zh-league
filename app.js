@@ -2,7 +2,7 @@
 /* ZH League — screens. Scores/sync: league.js (ZH). Votes/accusations/complaints: social.js (ZS). */
 (() => {
   const $ = (id) => document.getElementById(id);
-  const VERSION = 47;                                 // keep equal to CACHE in sw.js ("zh-league-v47")
+  const VERSION = 48;                                 // keep equal to CACHE in sw.js ("zh-league-v48")
   // Tiny safe DOM builder: text is always inserted as text, never as HTML.
   function h(tag, props, ...kids) {
     const el = document.createElement(tag);
@@ -73,6 +73,24 @@
   const role = () => { const p = me && ZH.player(doc, me); return !p ? "player" : p.role === "super" ? "super" : p.admin ? "admin" : "player"; };
   const isAdmin = () => role() === "admin" || role() === "super";
   const isSuper = () => role() === "super";
+  // Super admin's "View as": `me` becomes the viewed player so every screen shows exactly
+  // what they see; the real login waits in `realMe`. Strictly read-only: nothing is
+  // posted, saved, synced up or counted as a visit while viewing. Survives a reload.
+  let realMe = null;
+  const viewing = () => !!realMe;
+  const viewOnly = () => { if (!viewing()) return false; toast("👁 View only. Exit “View as” to do that."); return true; };
+  { const va = LS.get("viewAs", null), real = va && ZH.player(doc, va.real), them = va && ZH.player(doc, va.pid);
+    if (va && va.real === me && real && real.role === "super" && them) { realMe = me; me = va.pid; } else LS.del("viewAs"); }
+  function startView(pid) {
+    if (!isSuper() || viewing() || !P(pid)) return;
+    realMe = me; me = pid; LS.set("viewAs", { pid, real: realMe });
+    tab = "nights"; adminView = null; openPlayer = null; render(); window.scrollTo(0, 0);
+    toast(`👁 You're now seeing what ${nm(P(pid))} sees.`);
+  }
+  function stopView() {
+    if (!viewing()) return;
+    me = realMe; realMe = null; LS.del("viewAs"); tab = "admin"; render(); window.scrollTo(0, 0);
+  }
   const saveLocal = () => LS.set("doc", doc);
   const P = (id) => ZH.player(doc, id);
   const aka = (id) => ZH.displayName(P(id));          // CAPS name + optional signature emoji, e.g. "DARK GOAT 🍆"
@@ -89,7 +107,7 @@
     if (conn.demo) { setStatus("busy", "Demo ⇄"); pingVisit(); return Promise.resolve(); }   // local preview: never touches GitHub
     if (syncing) { again = true; return syncing; }
     setStatus("busy", "Syncing…");
-    syncing = ZH.syncDoc(fetch.bind(window), conn, doc, { readOnly: !isAdmin(), message,
+    syncing = ZH.syncDoc(fetch.bind(window), conn, doc, { readOnly: !isAdmin() || viewing(), message,
       onMerged: (m) => { doc = m; saveLocal(); render(); } })
       .then(async ({ doc: d, status }) => {
         doc = d; saveLocal();
@@ -97,6 +115,7 @@
           loaded = true; keyProblem = false;
           const pending = LS.get("pendingCode", null);
           if (pending) { LS.del("pendingCode"); await tryLogin(pending); }
+          if (viewing() && (!P(me) || !P(realMe))) stopView();   // the viewed (or your own) profile was deleted
           if (me && !P(me)) { me = null; LS.del("me"); }   // profile was deleted
           try { events = await ZS.load(fetch.bind(window), conn); LS.set("social", events); } catch {}
           LS.set("dirty", false); setStatus("ok", "Synced");
@@ -110,11 +129,12 @@
     return syncing;
   }
   function change(message, mutator) {
-    if (!isAdmin()) return;
+    if (viewOnly() || !isAdmin()) return;
     mutator(doc); doc = ZH.merge(doc, null); LS.set("dirty", true); saveLocal(); render(); sync(message);
   }
   // post a social event (vote / accusation / side / complaint); shows instantly
   async function postEvent(ev) {
+    if (viewOnly()) return false;
     if (!me) { toast("Pick who you are first (Me tab)."); return false; }
     const full = { ...ev, by: me, at: Date.now() };
     if (conn.demo) { events.push({ ...full, cid: uid() }); LS.set("demoSocial", events); render(); return true; }
@@ -127,6 +147,7 @@
     }
   }
   async function deleteEvent(ev) {
+    if (viewOnly()) return;
     if (!confirm("Delete this post for everyone?")) return;
     if (!conn.demo) { try { await ZS.remove(fetch.bind(window), conn, ev.cid); } catch { toast("Couldn't delete: check your connection."); return; } }
     events = events.filter((e) => e.cid !== ev.cid); LS.set(conn.demo ? "demoSocial" : "social", events); render(); toast("Deleted.");
@@ -134,7 +155,7 @@
 
   // ----- activity: one tiny "seen" ping per visit (30 min away = new visit) ------------------
   // Only the super admin sees the report (Admin → Activity report).
-  function countTab(t) { const c = LS.get("act.tabs", {}); c[t] = (c[t] || 0) + 1; LS.set("act.tabs", c); }
+  function countTab(t) { if (viewing()) return; const c = LS.get("act.tabs", {}); c[t] = (c[t] || 0) + 1; LS.set("act.tabs", c); }
   // Any sign of life (opening, coming back, tapping a tab) after 30+ min away starts a
   // new visit; its ping stays owed ("act.owed") until it's actually sent.
   function touch() {
@@ -144,7 +165,7 @@
   }
   let pinging = false;
   async function pingVisit() {
-    if (!conn || !me || !P(me) || document.visibilityState !== "visible") return;
+    if (!conn || !me || !P(me) || viewing() || document.visibilityState !== "visible") return;
     touch();
     const owed = LS.get("act.owed", 0);
     if (!owed || pinging) return;                      // already counted this visit
@@ -180,6 +201,8 @@
     $("app").hidden = !inside; $("tabs").hidden = !inside;
     if (!connected) { setStatus("", "Locked"); $("seasonPick").hidden = true; return; }
     if (!inside) { $("seasonPick").hidden = true; if (!loaded && !syncing) setStatus("busy", "Loading…"); return; }
+    $("viewBar").hidden = !viewing();
+    if (viewing()) $("viewName").textContent = aka(me);
     $("adminTabLabel").textContent = isAdmin() ? "Admin" : "Me";
     const seasons = doc.seasons.slice().sort((a, b) => b.startTs - a.startTs);
     const cur = ZH.currentSeason(doc);
@@ -609,11 +632,21 @@
             if (await postEvent({ t: "status", text: "" })) toast("Status cleared. Mysterious."); } }, "Clear") : null),
         h("label", { class: "f" }, "Mood"), upsetToggle());
     }
-    mine.append(h("button", { class: "linkbtn", type: "button", onclick: () => {
+    if (viewing()) mine.append(h("button", { class: "btn secondary", type: "button", onclick: stopView }, "👁 Exit “View as”"));
+    else mine.append(h("button", { class: "linkbtn", type: "button", onclick: () => {
       if (!confirm("Log out on this phone? You'll need your ID code to come back.")) return;
       me = null; LS.del("me"); LS.del("vaultKey"); render(); } }, "Log out"));
     box.append(mine);
     if (isAdmin()) box.append(playersCard());
+    if (isSuper()) {
+      const others = playersSorted().filter((p) => p.id !== me);
+      const pick = h("select", { class: "t" }, others.map((p) => h("option", { value: p.id }, nm(p) + (p.admin ? " (admin)" : ""))));
+      box.append(h("div", { class: "card" }, h("h2", {}, "View as a player"),
+        h("p", { class: "note", style: "margin-top:0" }, "See the real league exactly as they do. Read-only: nothing gets posted, saved or counted as their visit. Only on this phone."),
+        others.length ? [pick, h("div", { class: "row", style: "margin-top:10px" },
+          h("button", { class: "btn", type: "button", onclick: () => startView(pick.value) }, "👁 View as"))]
+          : h("p", { class: "note" }, "Add a player first.")));
+    }
     if (isSuper()) box.append(h("div", { class: "card" }, h("h2", {}, "Activity report"),
       h("p", { class: "note", style: "margin-top:0" }, "Daily and weekly active players, visits, who's ghosting. Only you can see this."),
       h("button", { class: "btn", type: "button", onclick: () => { adminView = "activity"; render(); window.scrollTo(0, 0); } }, "📊 Open activity report")));
@@ -621,7 +654,7 @@
     if (conn.demo) box.append(h("div", { class: "card" }, h("h2", {}, "Local preview"),
       h("p", { class: "note" }, "Demo data on this computer only. Switch role or reset the sample data."),
       h("button", { class: "btn secondary", type: "button", onclick: () => { location.href = "dev/"; } }, "Open preview launcher")));
-    box.append(h("div", { class: "card" }, h("button", { class: "btn danger", type: "button", onclick: () => {
+    if (!viewing()) box.append(h("div", { class: "card" }, h("button", { class: "btn danger", type: "button", onclick: () => {
       if (!confirm("Disconnect this phone? You'll need the group link (or key) and your ID code to come back.")) return;
       ["conn", "doc", "me", "dirty", "social", "pendingCode", "vaultKey"].forEach(LS.del); loaded = false; conn = null; doc = ZH.emptyDoc(); events = []; me = null; render();
     } }, "Disconnect this phone")));
@@ -964,10 +997,12 @@
   // ----- events --------------------------------------------------------------------------------
   document.querySelectorAll("nav.tabs button").forEach((b) => b.addEventListener("click", () => { tab = b.dataset.tab; LS.set("tab", tab); countTab(tab); touch(); if (tab !== "admin") adminView = null; render(); window.scrollTo(0, 0); }));
   $("seasonPick").addEventListener("change", (e) => { seasonId = e.target.value; render(); });
+  $("viewExit").addEventListener("click", stopView);
   $("syncBtn").addEventListener("click", () => { if (conn && conn.demo) location.href = "dev/"; else sync(); });
   async function tryLogin(code) {
     const p = await ZH.findByCode(doc, code);
     if (!p) return false;
+    realMe = null; LS.del("viewAs");
     me = p.id; LS.set("me", me); tab = "nights"; toast(`Welcome, ${nm(p)}. “I will work!”`); render(); return true;
   }
   $("connectBtn").addEventListener("click", async () => {
@@ -1000,7 +1035,7 @@
     toast("You're in command. Save your code, then name yourself in Players → Edit.");
   });
   // the tab on screen when the app goes to the background; the last one before a 30-min gap is where the visit ended
-  const noteExit = () => { if (me) { LS.set("act.exit", adminView === "activity" ? "report" : tab); LS.set("act.end", Date.now()); } };
+  const noteExit = () => { if (me && !viewing()) { LS.set("act.exit", adminView === "activity" ? "report" : tab); LS.set("act.end", Date.now()); } };
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") sync(); else noteExit(); });
   window.addEventListener("pagehide", noteExit);
   window.addEventListener("online", () => sync());
