@@ -2,7 +2,7 @@
 /* ZH League — screens. Scores/sync: league.js (ZH). Votes/accusations/complaints: social.js (ZS). */
 (() => {
   const $ = (id) => document.getElementById(id);
-  const VERSION = 46;                                 // keep equal to CACHE in sw.js ("zh-league-v46")
+  const VERSION = 47;                                 // keep equal to CACHE in sw.js ("zh-league-v47")
   // Tiny safe DOM builder: text is always inserted as text, never as HTML.
   function h(tag, props, ...kids) {
     const el = document.createElement(tag);
@@ -86,7 +86,7 @@
     $("syncBtn").classList.toggle("quiet", kind === "ok"); $("syncBtn").title = text; };
   function sync(message) {
     if (!conn) return Promise.resolve();
-    if (conn.demo) { setStatus("busy", "Demo ⇄"); return Promise.resolve(); }   // local preview: never touches GitHub
+    if (conn.demo) { setStatus("busy", "Demo ⇄"); pingVisit(); return Promise.resolve(); }   // local preview: never touches GitHub
     if (syncing) { again = true; return syncing; }
     setStatus("busy", "Syncing…");
     syncing = ZH.syncDoc(fetch.bind(window), conn, doc, { readOnly: !isAdmin(), message,
@@ -135,22 +135,30 @@
   // ----- activity: one tiny "seen" ping per visit (30 min away = new visit) ------------------
   // Only the super admin sees the report (Admin → Activity report).
   function countTab(t) { const c = LS.get("act.tabs", {}); c[t] = (c[t] || 0) + 1; LS.set("act.tabs", c); }
+  // Any sign of life (opening, coming back, tapping a tab) after 30+ min away starts a
+  // new visit; its ping stays owed ("act.owed") until it's actually sent.
+  function touch() {
+    const now = Date.now();
+    if (now - LS.get("act.active", 0) >= ZA.GAP) LS.set("act.owed", now);
+    LS.set("act.active", now);
+  }
   let pinging = false;
   async function pingVisit() {
-    if (!conn || !me || !P(me) || pinging || document.visibilityState !== "visible") return;
-    const now = Date.now(), lastActive = LS.get("act.active", 0);
-    LS.set("act.active", now);
-    if (now - lastActive < ZA.GAP) return;             // still the same visit
+    if (!conn || !me || !P(me) || document.visibilityState !== "visible") return;
+    touch();
+    const owed = LS.get("act.owed", 0);
+    if (!owed || pinging) return;                      // already counted this visit
+    const now = owed;
     const start = LS.get("act.start", 0), end = LS.get("act.end", 0);   // the previous visit
     const dur = start && end > start && end - start < 6 * 3600e3 ? Math.round((end - start) / 1000) : 0;
     const ev = { t: "seen", by: me, at: now, v: VERSION, ...(dur ? { dur } : {}), dev: matchMedia("(pointer: coarse)").matches ? "phone" : "desktop",
       app: matchMedia("(display-mode: standalone)").matches, tabs: LS.get("act.tabs", {}),
       ...(LS.get("act.exit", null) ? { exit: LS.get("act.exit", null) } : {}) };   // where the previous visit ended
-    const done = () => { LS.set("act.tabs", {}); LS.del("act.exit"); LS.del("act.end"); LS.set("act.start", now); };
+    const done = () => { LS.set("act.tabs", {}); LS.del("act.exit"); LS.del("act.end"); LS.set("act.start", now); LS.del("act.owed"); };
     if (conn.demo) { const a = LS.get("demoActivity", []); a.push(ev); LS.set("demoActivity", a); done(); return; }
     pinging = true;
     try { await ZA.ping(fetch.bind(window), conn, ev); done(); }
-    catch { LS.set("act.active", lastActive); }       // try again on the next sync
+    catch {}                                           // still owed: tried again on the next sync
     finally { pinging = false; }
   }
 
@@ -954,7 +962,7 @@
   }
 
   // ----- events --------------------------------------------------------------------------------
-  document.querySelectorAll("nav.tabs button").forEach((b) => b.addEventListener("click", () => { tab = b.dataset.tab; LS.set("tab", tab); countTab(tab); LS.set("act.active", Date.now()); if (tab !== "admin") adminView = null; render(); window.scrollTo(0, 0); }));
+  document.querySelectorAll("nav.tabs button").forEach((b) => b.addEventListener("click", () => { tab = b.dataset.tab; LS.set("tab", tab); countTab(tab); touch(); if (tab !== "admin") adminView = null; render(); window.scrollTo(0, 0); }));
   $("seasonPick").addEventListener("change", (e) => { seasonId = e.target.value; render(); });
   $("syncBtn").addEventListener("click", () => { if (conn && conn.demo) location.href = "dev/"; else sync(); });
   async function tryLogin(code) {
