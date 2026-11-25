@@ -2,6 +2,7 @@
 /* ZH League — screens. Scores/sync: league.js (ZH). Votes/accusations/complaints: social.js (ZS). */
 (() => {
   const $ = (id) => document.getElementById(id);
+  const VERSION = 46;                                 // keep equal to CACHE in sw.js ("zh-league-v46")
   // Tiny safe DOM builder: text is always inserted as text, never as HTML.
   function h(tag, props, ...kids) {
     const el = document.createElement(tag);
@@ -99,6 +100,7 @@
           if (me && !P(me)) { me = null; LS.del("me"); }   // profile was deleted
           try { events = await ZS.load(fetch.bind(window), conn); LS.set("social", events); } catch {}
           LS.set("dirty", false); setStatus("ok", "Synced");
+          pingVisit();
         } else if (status === "auth") { setStatus("err", "Key expired or wrong"); if (!me) keyProblem = true; }
         else if (status === "public") { setStatus("err", "Public repo"); if (!me) keyProblem = "public"; }
         else setStatus("err", LS.get("dirty", false) ? "Offline · will sync" : "Offline");
@@ -128,6 +130,28 @@
     if (!confirm("Delete this post for everyone?")) return;
     if (!conn.demo) { try { await ZS.remove(fetch.bind(window), conn, ev.cid); } catch { toast("Couldn't delete: check your connection."); return; } }
     events = events.filter((e) => e.cid !== ev.cid); LS.set(conn.demo ? "demoSocial" : "social", events); render(); toast("Deleted.");
+  }
+
+  // ----- activity: one tiny "seen" ping per visit (30 min away = new visit) ------------------
+  // Only the super admin sees the report (Admin → Activity report).
+  function countTab(t) { const c = LS.get("act.tabs", {}); c[t] = (c[t] || 0) + 1; LS.set("act.tabs", c); }
+  let pinging = false;
+  async function pingVisit() {
+    if (!conn || !me || !P(me) || pinging || document.visibilityState !== "visible") return;
+    const now = Date.now(), lastActive = LS.get("act.active", 0);
+    LS.set("act.active", now);
+    if (now - lastActive < ZA.GAP) return;             // still the same visit
+    const start = LS.get("act.start", 0), end = LS.get("act.end", 0);   // the previous visit
+    const dur = start && end > start && end - start < 6 * 3600e3 ? Math.round((end - start) / 1000) : 0;
+    const ev = { t: "seen", by: me, at: now, v: VERSION, ...(dur ? { dur } : {}), dev: matchMedia("(pointer: coarse)").matches ? "phone" : "desktop",
+      app: matchMedia("(display-mode: standalone)").matches, tabs: LS.get("act.tabs", {}),
+      ...(LS.get("act.exit", null) ? { exit: LS.get("act.exit", null) } : {}) };   // where the previous visit ended
+    const done = () => { LS.set("act.tabs", {}); LS.del("act.exit"); LS.del("act.end"); LS.set("act.start", now); };
+    if (conn.demo) { const a = LS.get("demoActivity", []); a.push(ev); LS.set("demoActivity", a); done(); return; }
+    pinging = true;
+    try { await ZA.ping(fetch.bind(window), conn, ev); done(); }
+    catch { LS.set("act.active", lastActive); }       // try again on the next sync
+    finally { pinging = false; }
   }
 
   // ----- shell --------------------------------------------------------------------------
@@ -555,8 +579,10 @@
 
   // ----- Admin / Me -----------------------------------------------------------------------
   let editPlayer = null;
+  let adminView = null;                               // "activity" = the super admin's report
   function renderAdmin() {
     const box = $("tab-admin"); box.innerHTML = "";
+    if (adminView === "activity" && isSuper()) { renderActivity(box); return; }
     if (codeReveal) { const c = codeCard(); if (c) box.append(c); }
     const roleName = { player: "Player", admin: "Admin", super: "Super admin 🦸" }[role()];
     const mine = h("div", { class: "card" }, h("h2", {}, "This phone"), h("p", { class: "note" }, "Role: ", h("b", {}, roleName)));
@@ -580,6 +606,9 @@
       me = null; LS.del("me"); LS.del("vaultKey"); render(); } }, "Log out"));
     box.append(mine);
     if (isAdmin()) box.append(playersCard());
+    if (isSuper()) box.append(h("div", { class: "card" }, h("h2", {}, "Activity report"),
+      h("p", { class: "note", style: "margin-top:0" }, "Daily and weekly active players, visits, who's ghosting. Only you can see this."),
+      h("button", { class: "btn", type: "button", onclick: () => { adminView = "activity"; render(); window.scrollTo(0, 0); } }, "📊 Open activity report")));
     if (isSuper()) { box.append(codesCard()); box.append(seasonsCard()); box.append(inviteCard()); box.append(restoreCard()); }
     if (conn.demo) box.append(h("div", { class: "card" }, h("h2", {}, "Local preview"),
       h("p", { class: "note" }, "Demo data on this computer only. Switch role or reset the sample data."),
@@ -588,6 +617,142 @@
       if (!confirm("Disconnect this phone? You'll need the group link (or key) and your ID code to come back.")) return;
       ["conn", "doc", "me", "dirty", "social", "pendingCode", "vaultKey"].forEach(LS.del); loaded = false; conn = null; doc = ZH.emptyDoc(); events = []; me = null; render();
     } }, "Disconnect this phone")));
+  }
+
+  // ----- super admin: activity report ------------------------------------------------------
+  let act = null, actBusy = false, actDay = null, actWeek = null, actPlayer = null;
+  const FEAT = { react: "🤬/✅ reactions", vote: "MVP/Noob votes", side: "Who's right votes", accuse: "Accusations",
+    complaint: "Complaints", radio: "Radio", status: "Status lines", mood: "Get upset" };
+  // the last 6 nights with sets, for "after each night"
+  function nightsForReport() {
+    return doc.nights.map((n) => ({ n, gs: ZH.gamesOf(doc, n.id) })).filter((x) => x.gs.length)
+      .sort((a, b) => b.n.ts - a.n.ts).slice(0, 6).map(({ n, gs }) => ({ id: n.id, ts: n.ts,
+        start: Math.max(n.ts, ...gs.map((g) => g.ts || 0)),
+        eligible: doc.players.filter((p) => ZH.eligible(p, n)).map((p) => p.id),
+        played: [...new Set(gs.flatMap((g) => [...g.teamA, ...g.teamB]))] }));
+  }
+  async function loadActivity() {
+    if (actBusy) return; actBusy = true; render();
+    try {
+      const pings = conn.demo ? LS.get("demoActivity", []) : await ZA.load(fetch.bind(window), conn);
+      act = { pings, at: Date.now() };
+    } catch { toast("Couldn't load the activity log: check your connection."); }
+    actBusy = false; render();
+  }
+  function bars(series, { label, tip, pick, picked, cls }) {
+    const max = Math.max(1, ...series.map((d) => d.n));
+    return h("div", { class: "bars " + (cls || "") }, series.map((d, i) => h("button", {
+      type: "button", class: "bar" + (picked === i ? " on" : ""), title: tip(d), "aria-label": tip(d),
+      onclick: pick ? () => pick(i) : null },
+      h("span", { class: "fill", style: `height:${d.n ? Math.max(4, (d.n / max) * 100) : 0}%` }),
+      h("small", {}, label(d, i)))));
+  }
+  function hbars(counts, empty) {
+    const xs = Object.entries(counts).sort((a, b) => b[1] - a[1]), max = Math.max(1, ...xs.map((t) => t[1]));
+    return xs.length ? xs.map(([k, v]) => h("div", { class: "hbar" }, h("span", {}, TABN[k] || k),
+      h("i", {}, h("em", { style: `width:${(v / max) * 100}%` })), h("b", {}, v))) : h("p", { class: "note" }, empty);
+  }
+  function playerDetail(p, r) {
+    const posts = Object.entries(p.posts).sort((a, b) => b[1] - a[1]);
+    return h("div", { class: "pdetail" },
+      h("small", { class: "lbl" }, "Last 30 days"),
+      h("div", { class: "strip" }, p.strip.map((on, i) => h("i", { class: on ? "on" : "", title: dayLabel(r.daily[i].t) + (on ? ": active" : ": not seen") }))),
+      h("small", { class: "lbl" }, "Visits by hour"),
+      bars(p.hours.map((n, i) => ({ n, i })), { cls: "thin mini", tip: (d) => `${String(d.i).padStart(2, "0")}:00 · ${d.n} visits`, label: (d) => (d.i % 6 === 0 ? String(d.i).padStart(2, "0") : "") }),
+      h("small", { class: "lbl" }, "Opens"), hbars(p.tabs, "No tab data yet."),
+      h("small", { class: "lbl" }, "Leaves from"), hbars(p.exits, "No exits recorded yet."),
+      h("p", { class: "note" }, posts.length ? "Posts: " + posts.map(([k, v]) => `${FEAT[k] || k} ${v}`).join(" · ") : "No posts in 30 days."));
+  }
+  const TABN = { nights: "Nights", rank: "Rank", feed: "News", justice: "Justice", bets: "Bets", admin: "Admin / Me", report: "Activity report" };
+  function renderActivity(box) {
+    const includeMe = LS.get("act.includeMe", false);
+    box.append(h("div", { class: "row", style: "margin-bottom:12px" },
+      h("button", { class: "btn secondary", type: "button", onclick: () => { adminView = null; render(); } }, "← Admin"),
+      h("button", { class: "btn secondary", type: "button", disabled: actBusy, onclick: loadActivity }, actBusy ? "Loading…" : "↻ Refresh")));
+    if (!act) { box.append(h("div", { class: "card" }, h("p", { class: "note" }, "Pulling the intel…"))); if (!actBusy) loadActivity(); return; }
+    const r = ZA.report(act.pings, events, doc.players, { exclude: includeMe ? null : me, nights: nightsForReport() });
+    const short = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+    const names = (ids) => ids.length ? ids.map(aka).join(", ") : "nobody";
+    const tile = (n, lbl, sub) => h("div", { class: "kpi" }, h("b", {}, n), h("span", {}, lbl), sub ? h("small", {}, sub) : null);
+    const of = "of " + r.players;
+
+    box.append(h("div", { class: "card" }, h("h2", {}, "Activity report"),
+      h("p", { class: "note", style: "margin-top:0" }, "A visit = opening the app after 30+ minutes away. Posts (votes, radio, complaints…) also count as being active.",
+        r.since ? " Visit tracking since " + dayLabel(r.since) + "." : " Visit tracking just started: only posts so far."),
+      h("div", { class: "checks" }, h("label", {}, h("input", { type: "checkbox", checked: includeMe,
+        onchange: (e) => { LS.set("act.includeMe", e.target.checked); render(); } }), "Count me too"))));
+
+    box.append(h("div", { class: "kpis" },
+      tile(r.dau, "Today", of), tile(r.wau, "Last 7 days", of), tile(r.mau, "Last 30 days", of),
+      tile(r.avgDau.toFixed(1), "Avg per day", "30 days"), tile(r.avgMin == null ? "—" : r.avgMin.toFixed(1), "Min per visit", r.visitsToday + " visits today"),
+      tile(Math.round(r.stickiness * 100) + "%", "Stickiness", "avg day ÷ month")));
+
+    const dSel = actDay == null ? r.daily.length - 1 : actDay, dd = r.daily[dSel];
+    box.append(h("div", { class: "card" }, h("h2", {}, "Daily active players"), h("p", { class: "note", style: "margin-top:0" }, "Last 30 days. Tap a day."),
+      bars(r.daily, { picked: dSel, pick: (i) => { actDay = i; render(); },
+        tip: (d) => `${short(d.t)}: ${d.n} active`,
+        label: (d, i) => (i % 5 === 4 || i === r.daily.length - 1 ? new Date(d.t).getDate() : "") }),
+      h("p", { class: "note" }, h("b", {}, dayLabel(dd.t) + ": "), dd.n + " · " + names(dd.who))));
+
+    const wSel = actWeek == null ? r.weekly.length - 1 : actWeek, ww = r.weekly[wSel];
+    box.append(h("div", { class: "card" }, h("h2", {}, "Weekly active players"), h("p", { class: "note", style: "margin-top:0" }, "Calendar weeks, Monday to Sunday. Tap a week."),
+      bars(r.weekly, { picked: wSel, pick: (i) => { actWeek = i; render(); }, cls: "wide",
+        tip: (d) => `Week of ${short(d.t)}: ${d.n} active`, label: (d) => short(d.t) }),
+      h("p", { class: "note" }, h("b", {}, "Week of " + short(ww.t) + ": "), ww.n + " · " + names(ww.who))));
+
+    const tbl = h("div", { class: "card" }, h("h2", {}, "Players"),
+      h("p", { class: "note", style: "margin-top:0" }, "Days active (7 / 30), visits and posts in the last 30 days. Tap a player for details."));
+    r.people.forEach((p) => {
+      const ghost = r.ghosts.includes(p.id), pl = P(p.id), away = pl && !ZH.isActiveNow(pl), old = p.version != null && p.version < VERSION;
+      const open = actPlayer === p.id;
+      tbl.append(h("button", { type: "button", class: "prow actrow" + (open ? " open" : ""), "aria-expanded": String(open),
+        onclick: () => { actPlayer = open ? null : p.id; render(); } },
+        h("div", { class: "who" }, h("b", {}, aka(p.id), ghost ? h("span", { class: "tag ghost" }, "GHOSTING") : null,
+            old ? h("span", { class: "tag ghost" }, "OLD v" + p.version) : null),
+          h("small", {}, (p.last ? "last seen " + ago(p.last) : "never seen") + (p.streak > 1 ? ` · 🔥 ${p.streak}-day streak` : "") +
+            (p.avgMin != null ? ` · ${p.avgMin.toFixed(1)} min/visit` : "") +
+            (p.exit ? " · leaves on " + (TABN[p.exit] || p.exit) : "") +
+            (p.dev ? " · " + p.dev + (p.app ? " app" : "") : "") + (p.version != null && !old ? " · v" + p.version : "") + (away ? " · on leave" : ""))),
+        h("div", { class: "nums" },
+          h("span", { title: "days active, last 7" }, h("b", {}, p.days7), "/7"),
+          h("span", { title: "days active, last 30" }, h("b", {}, p.days30), "/30"),
+          h("span", { title: "visits, last 30 days" }, h("b", {}, p.visits30), " v"),
+          h("span", { title: "posts, last 30 days" }, h("b", {}, p.actions30), " p"))));
+      if (open) tbl.append(playerDetail(p, r));
+    });
+    box.append(tbl);
+
+    box.append(h("div", { class: "card" }, h("h2", {}, "After each night"),
+      h("p", { class: "note", style: "margin-top:0" }, "Who opened the app within 24 h of the results, and who of the players voted MVP/Noob."),
+      r.nights.length ? r.nights.map((n) => {
+        const missed = n.eligible.filter((id) => !n.checked.includes(id)), noVote = n.played.filter((id) => !n.voted.includes(id));
+        const early = !r.since || n.start < r.since;      // before visit tracking: only posts count as "checked"
+        return h("div", { class: "prow nightrow" }, h("div", { class: "who" },
+          h("b", {}, dayLabel(n.ts), n.open ? h("span", { class: "tag" }, "COUNTING") : early ? h("span", { class: "tag" }, "BEFORE TRACKING") : null),
+          n.eligible.length ? h("small", {}, missed.length ? "didn't check: " + missed.map(aka).join(", ") : "everyone checked") : null,
+          n.played.length ? h("small", {}, noVote.length ? "didn't vote: " + noVote.map(aka).join(", ") : "everyone voted") : null),
+          h("div", { class: "nums col" },
+            h("span", { title: "checked the results within 24 h" }, h("b", {}, n.checked.length), "/" + n.eligible.length + " seen"),
+            h("span", { title: "voted (of those who played)" }, h("b", {}, n.voted.length), "/" + n.played.length + " voted")));
+      }) : h("p", { class: "note" }, "No nights with sets yet.")));
+
+    const hrs = r.hours.map((n, i) => ({ n, i }));
+    box.append(h("div", { class: "card" }, h("h2", {}, "When the crew shows up"), h("p", { class: "note", style: "margin-top:0" }, "Visits by hour of day, last 30 days (your time)."),
+      bars(hrs, { cls: "thin", tip: (d) => `${String(d.i).padStart(2, "0")}:00 · ${d.n} visits`, label: (d) => (d.i % 6 === 0 ? String(d.i).padStart(2, "0") : "") })));
+
+    box.append(h("div", { class: "card" }, h("h2", {}, "Feature use"),
+      h("p", { class: "note", style: "margin-top:0" }, "Posts by type, last 30 days (last 7 days in the small number)."),
+      Object.keys(r.features).length ? Object.entries(r.features).sort((a, b) => b[1].d30 - a[1].d30).map(([k, f], _, xs) =>
+        h("div", { class: "hbar feat" }, h("span", {}, FEAT[k] || k),
+          h("i", {}, h("em", { style: `width:${(f.d30 / xs[0][1].d30) * 100}%` })), h("b", {}, f.d30, h("small", {}, " " + f.d7))))
+        : h("p", { class: "note" }, "Nobody has posted anything in 30 days. Tragic."),
+      (() => { const dead = Object.keys(FEAT).filter((k) => !r.features[k]); return dead.length ? h("p", { class: "note" }, "Unused: " + dead.map((k) => FEAT[k]).join(", ")) : null; })()));
+    box.append(h("div", { class: "card" }, h("h2", {}, "Where they close the app"),
+      h("p", { class: "note", style: "margin-top:0" }, "The tab on screen when a visit ended, last 30 days. Shows up when they come back."),
+      hbars(r.exits, "No exits recorded yet.")));
+    box.append(h("div", { class: "card" }, h("h2", {}, "Most opened tabs"),
+      hbars(r.tabs, "No tab data yet."),
+      h("p", { class: "note" }, `Devices: ${r.dev.phone} on phone, ${r.dev.desktop} on desktop (latest visit each).`)));
   }
 
   // a card that folds away; remembers which ones you left open
@@ -789,7 +954,7 @@
   }
 
   // ----- events --------------------------------------------------------------------------------
-  document.querySelectorAll("nav.tabs button").forEach((b) => b.addEventListener("click", () => { tab = b.dataset.tab; LS.set("tab", tab); render(); window.scrollTo(0, 0); }));
+  document.querySelectorAll("nav.tabs button").forEach((b) => b.addEventListener("click", () => { tab = b.dataset.tab; LS.set("tab", tab); countTab(tab); LS.set("act.active", Date.now()); if (tab !== "admin") adminView = null; render(); window.scrollTo(0, 0); }));
   $("seasonPick").addEventListener("change", (e) => { seasonId = e.target.value; render(); });
   $("syncBtn").addEventListener("click", () => { if (conn && conn.demo) location.href = "dev/"; else sync(); });
   async function tryLogin(code) {
@@ -826,9 +991,13 @@
     codeReveal = { pid: id, code, mine: true }; tab = "admin"; render(); sync("Create league");
     toast("You're in command. Save your code, then name yourself in Players → Edit.");
   });
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") sync(); });
+  // the tab on screen when the app goes to the background; the last one before a 30-min gap is where the visit ended
+  const noteExit = () => { if (me) { LS.set("act.exit", adminView === "activity" ? "report" : tab); LS.set("act.end", Date.now()); } };
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") sync(); else noteExit(); });
+  window.addEventListener("pagehide", noteExit);
   window.addEventListener("online", () => sync());
 
+  countTab(tab);
   render();
   // personal link opened and the league data is already here (or demo): log straight in
   { const pending = LS.get("pendingCode", null);

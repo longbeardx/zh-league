@@ -1,6 +1,6 @@
 // Offline support for the app's own files, network first. GitHub API calls are never cached.
-const CACHE = "zh-league-v43";
-const SHELL = ["./", "index.html", "league.js", "social.js", "app.js", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png"];
+const CACHE = "zh-league-v46";   // keep equal to VERSION in app.js
+const SHELL = ["./", "index.html", "league.js", "social.js", "activity.js", "app.js", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png"];
 self.addEventListener("install", (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener("activate", (e) => e.waitUntil(
   caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith("zh-league-") && k !== CACHE).map((k) => caches.delete(k))))
